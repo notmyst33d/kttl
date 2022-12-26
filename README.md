@@ -12,6 +12,7 @@ This compiler is currently experimental and only supports a subset of TL
 - [ ] bytes type
 - [ ] Vector<T> type
 - [ ] null type
+- [ ] bool type
 - [ ] Object type
 - [x] Flags and optional parameters
 - [ ] Proper processing of types
