@@ -91,6 +91,13 @@ class TLCompiler(
     class TLBuffer(var buffer: ByteArray = ByteArray(0)) {
         var position = 0
 
+        fun writeArbitraryBigInteger(data: BigInteger, size: Int) {
+            val newBuffer = ByteArray(size)
+            for (i in 0 until size) newBuffer[i] = (data shr 8 * i).toByte()
+            position += size
+            buffer += newBuffer
+        }
+
         fun writeArbitraryLong(data: Long, size: Int) {
             val newBuffer = ByteArray(size)
             for (i in 0 until size) newBuffer[i] = (data shr 8 * i).toByte()
@@ -112,6 +119,16 @@ class TLCompiler(
         fun writeLong(data: Long) = writeArbitraryLong(data, 8)
         fun writeULong(data: ULong) = writeArbitraryLong(data.toLong(), 8)
         fun writeDouble(data: Double) = writeArbitraryLong(data.toBits(), 8)
+        fun writeInt128(data: BigInteger) = writeArbitraryBigInteger(data, 16)
+        fun writeInt256(data: BigInteger) = writeArbitraryBigInteger(data, 32)
+
+        fun readArbitraryBigInteger(size: Int): BigInteger {
+            assert(position + size <= buffer.size)
+            val value = BigInteger("0")
+            for (i in size - 1 downTo 0) (buffer[i + position].toLong() and 0xff shl i * 8).toBigInteger() or value
+            position += size
+            return value
+        }
 
         fun readArbitraryLong(size: Int): Long {
             assert(position + size <= buffer.size)
@@ -137,6 +154,8 @@ class TLCompiler(
         fun readLong() = readArbitraryLong(8)
         fun readULong() = readArbitraryLong(8).toULong()
         fun readDouble() = Double.fromBits(readArbitraryLong(8))
+        fun readInt128() = readArbitraryBigInteger(16)
+        fun readInt256() = readArbitraryBigInteger(32)
     }
     """.trimIndent()
 
