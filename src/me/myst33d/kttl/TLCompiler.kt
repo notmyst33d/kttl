@@ -1,8 +1,10 @@
 package me.myst33d.kttl
 
-import me.myst33d.io.File
 import kotlin.random.Random
 import kotlin.random.nextUInt
+import java.io.File
+import java.util.concurrent.Executors
+import java.util.concurrent.Callable
 
 class TLCompiler(
     private val schema: TLSchema,
@@ -290,15 +292,9 @@ class TLCompiler(
         return code
     }
 
-    private fun compileMapping(): String {
-        var code = ""
-        val append = { data: TLSerializable ->
-            val name = kotlinClassName(data.name, data.namespace)
-            code += "$name.hash -> $name.deserialize(buffer)\n".prependIndent("                ")
-        }
-        this.schema.constructors.forEach { append(it) }
-        this.schema.functions.forEach { append(it) }
-        return code
+    private fun compileMapping(name: String, namespace: String): String {
+        val kotlinName = kotlinClassName(name, namespace)
+        return "$kotlinName.hash -> $kotlinName.deserialize(buffer)".prependIndent("                ")
     }
 
     private fun compileGeneric(
@@ -328,41 +324,41 @@ class TLCompiler(
         return code
     }
 
-    fun compileSingle(namespace: String, name: String): String {
-        val constructor = this.schema.constructors.find { it.namespace == namespace && it.name == name }
-        val function = this.schema.functions.find { it.namespace == namespace && it.name == name }
-
-        if (constructor != null) {
-            return compileGeneric(
-                constructor.name,
-                constructor.hash,
-                constructor.args,
-                constructor.type,
-                constructor.namespace
-            )
-        }
-
-        if (function != null) {
-            return compileGeneric(function.name, function.hash, function.args, function.type, function.namespace)
-        }
-
-        throw Exception("Warning: Cannot compile \"$name\" because its not a constructor or function")
+    private fun writeStringToFile(path: String, data: String) {
+        val file = File(path)
+        file.parentFile.mkdirs()
+        file.writeText(data)
     }
 
     fun compile() {
-        val writeSourceFile = { data: TLSerializable ->
-            File.writeFileAsString(
-                getFullOutputFilePath(data.namespace, data.name),
-                compileSingle(data.namespace, data.name)
-            )
-        }
-        File.writeFileAsString(
+        val executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors())
+        val tasks =
+            schema.constructors.map {
+                Callable {
+                    writeStringToFile(
+                        getFullOutputFilePath(it.namespace, it.name),
+                        compileGeneric(it.name, it.hash, it.args, it.type, it.namespace)
+                    )
+                    compileMapping(it.name, it.namespace)
+                }
+            } + schema.functions.map {
+                Callable {
+                    writeStringToFile(
+                        getFullOutputFilePath(it.namespace, it.name),
+                        compileGeneric(it.name, it.hash, it.args, it.type, it.namespace)
+                    )
+                    compileMapping(it.name, it.namespace)
+                }
+            }
+
+        val results = executor.invokeAll(tasks)
+        executor.shutdown()
+
+        writeStringToFile(
             "${getFullOutputPath()}/TLObject.kt",
-            templateTlObject.replace("[MAPPING]", compileMapping())
+            templateTlObject.replace("[MAPPING]", results.joinToString("\n") { it.get() })
         )
-        File.writeFileAsString("${getFullOutputPath()}/TLBuffer.kt", classTlBuffer)
-        File.writeFileAsString("${getFullOutputPath()}/TLFlags.kt", classTlFlags)
-        this.schema.constructors.forEach { writeSourceFile(it) }
-        this.schema.functions.forEach { writeSourceFile(it) }
+        writeStringToFile("${getFullOutputPath()}/TLBuffer.kt", classTlBuffer)
+        writeStringToFile("${getFullOutputPath()}/TLFlags.kt", classTlFlags)
     }
 }
