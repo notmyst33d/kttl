@@ -66,7 +66,7 @@ class TLParser {
 
         // Parse the source
         for (line in source) {
-            if (line.isEmpty()) continue
+            if (line.isEmpty() || line.startsWith("//")) continue
             if (line.startsWith("---")) {
                 section = line.replace("---", "")
                 continue
