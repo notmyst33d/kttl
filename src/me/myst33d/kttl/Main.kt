@@ -1,8 +1,6 @@
 package me.myst33d.kttl
 
 import java.io.File
-import java.util.concurrent.Callable
-import java.util.concurrent.Executors
 
 fun main(args: Array<String>) {
     if (args.size < 3) {
