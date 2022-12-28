@@ -252,7 +252,7 @@ class TLCompiler(
         for (arg in args) {
             if (arg.type.name == "#") continue
             val generator = typeCodeGenerators[arg.type.name]
-                ?: throw Exception("Error: Type code generator for type \"${arg.type.name}\" was not found")
+                ?: throw Exception("Type code generator for type \"${arg.type.name}\" was not found")
 
             code += if (arg.type.optional) {
                 "    val ${kotlinFieldName(arg.name)}: ${generator(arg.type)} = null,\n"
@@ -268,7 +268,7 @@ class TLCompiler(
         var code = ""
         for (arg in args) {
             val generator = deserializationCodeGenerators[arg.type.name]
-                ?: throw Exception("Error: Deserialization code generator for type \"${arg.type.name}\" was not found")
+                ?: throw Exception("Deserialization code generator for type \"${arg.type.name}\" was not found")
             code += generator(kotlinFieldName(arg.name), arg.type).trimIndent().prependIndent("            ") + "\n"
         }
 
@@ -303,7 +303,7 @@ class TLCompiler(
 
         for (arg in args) {
             val generator = serializationCodeGenerators[arg.type.name]
-                ?: throw Exception("Error: Serialization code generator for type \"${arg.type.name}\" was not found")
+                ?: throw Exception("Serialization code generator for type \"${arg.type.name}\" was not found")
             code += generator(kotlinFieldName(arg.name), arg.type).trimIndent().prependIndent("        ") + "\n"
         }
 
@@ -353,18 +353,26 @@ class TLCompiler(
         val tasks =
             schema.constructors.map {
                 Callable {
-                    writeStringToFile(
-                        getFullOutputFilePath(it.namespace, it.name),
-                        compileGeneric(it.name, it.hash, it.args, it.type, it.namespace)
-                    )
+                    try {
+                        writeStringToFile(
+                            getFullOutputFilePath(it.namespace, it.name),
+                            compileGeneric(it.name, it.hash, it.args, it.type, it.namespace)
+                        )
+                    } catch (e: Exception) {
+                        throw Exception("${it.name}#${it.hash}: ${e.message}")
+                    }
                     compileMapping(it.name, it.namespace)
                 }
             } + schema.functions.map {
                 Callable {
-                    writeStringToFile(
-                        getFullOutputFilePath(it.namespace, it.name),
-                        compileGeneric(it.name, it.hash, it.args, it.type, it.namespace)
-                    )
+                    try {
+                        writeStringToFile(
+                            getFullOutputFilePath(it.namespace, it.name),
+                            compileGeneric(it.name, it.hash, it.args, it.type, it.namespace)
+                        )
+                    } catch (e: Exception) {
+                        throw Exception("${it.name}#${it.hash}: ${e.message}")
+                    }
                     compileMapping(it.name, it.namespace)
                 }
             }
