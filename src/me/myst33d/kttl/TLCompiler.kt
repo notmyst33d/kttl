@@ -77,12 +77,11 @@ class TLCompiler(
     private val classTlFlags = """
     package $packageNamespace
 
-    import kotlinx.cinterop.toBoolean
-    import kotlinx.cinterop.toByte
-
     class TLFlags(var flags: Int = 0) {
-        fun setValue(bit: Int, value: Boolean) = flags xor ((!value).toByte().toInt() shr bit)
-        fun getValue(bit: Int) = ((flags shr bit) and 1).toByte().toBoolean()
+        private fun intToBoolean(value: Int) = value == 1
+        private fun booleanToInt(value: Boolean) = if (value) 1 else 0
+        fun setValue(bit: Int, value: Boolean) = flags xor (booleanToInt(!value) shr bit)
+        fun getValue(bit: Int) = intToBoolean((flags shr bit) and 1)
     }
     """.trimIndent()
 
