@@ -76,15 +76,15 @@ class TLParser {
                 "types" -> {
                     try {
                         constructors += parseConstructor(line.split(" "))
-                    } catch (_: Exception) {
-                        println("Warning: Failed to parse constructor: $line")
+                    } catch (e: Exception) {
+                        println("Warning: Failed to parse constructor: $line ($e)")
                     }
                 }
                 "functions" -> {
                     try {
                         functions += parseFunction(line.split(" "))
-                    } catch (_: Exception) {
-                        println("Warning: Failed to parse function: $line")
+                    } catch (e: Exception) {
+                        println("Warning: Failed to parse function: $line ($e)")
                     }
                 }
                 else -> {
