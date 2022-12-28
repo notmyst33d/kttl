@@ -6,7 +6,15 @@ class TLParser {
         val args = mutableListOf<TLArgument>()
         val type = TLType(source.last().replace(";", ""), optional = false, generic = false)
 
-        for (arg in source.slice(1 until source.indexOf("="))) {
+        val sourceArgs = source.slice(1 until source.indexOf("="))
+        var skip = 0
+
+        sourceArgs.forEachIndexed { index, arg ->
+            if (skip > 0) {
+                skip -= 1
+                return@forEachIndexed
+            }
+
             var name = arg.split(":").last()
             var optional = false
             var generic = false
@@ -23,7 +31,11 @@ class TLParser {
             }
 
             if (name.contains("<")) {
-                for (genericName in name.substring(name.indexOf("<"), name.indexOf(">")).replace(" ", "").split(",")) {
+                while (!name.contains(">")) {
+                    name += sourceArgs[index + 1 + skip]
+                    skip += 1
+                }
+                for (genericName in name.substring(name.indexOf("<") + 1, name.indexOf(">")).replace(" ", "").split(",")) {
                     genericChildren += TLType(genericName, optional = false, generic = false)
                 }
                 generic = true
