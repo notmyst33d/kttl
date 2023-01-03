@@ -160,66 +160,283 @@ class TLCompiler(
     }
     """.trimIndent()
 
-    private val deserializationCodeGenerators = mapOf(
-        "long" to { name: String, type: TLType ->
-            if (type.optional) {
+    private val deserializationCodeGenerators: Map<String, (String, TLType) -> String> by lazy {
+        mapOf(
+            "int" to { name: String, type: TLType ->
+                if (type.optional) {
+                    """
+                    var $name: ${typeCodeGenerators[type.name]!!(type)} = null
+                    if (${kotlinFieldName(type.flags!!)}.getValue(${type.flagsBit})) {
+                        $name = buffer.readInt()
+                    }
+                    """
+                } else {
+                    "val $name = buffer.readInt()"
+                }
+            },
+            "long" to { name: String, type: TLType ->
+                if (type.optional) {
+                    """
+                    var $name: ${typeCodeGenerators[type.name]!!(type)} = null
+                    if (${kotlinFieldName(type.flags!!)}.getValue(${type.flagsBit})) {
+                        $name = buffer.readLong()
+                    }
+                    """
+                } else {
+                    "val $name = buffer.readLong()"
+                }
+            },
+            "int128" to { name: String, type: TLType ->
+                if (type.optional) {
+                    """
+                    var $name: ${typeCodeGenerators[type.name]!!(type)} = null
+                    if (${kotlinFieldName(type.flags!!)}.getValue(${type.flagsBit})) {
+                        $name = buffer.readInt128()
+                    }
+                    """
+                } else {
+                    "val $name = buffer.readInt128()"
+                }
+            },
+            "int256" to { name: String, type: TLType ->
+                if (type.optional) {
+                    """
+                    var $name: ${typeCodeGenerators[type.name]!!(type)} = null
+                    if (${kotlinFieldName(type.flags!!)}.getValue(${type.flagsBit})) {
+                        $name = buffer.readInt256()
+                    }
+                    """
+                } else {
+                    "val $name = buffer.readInt256()"
+                }
+            },
+            "bytes" to { name: String, type: TLType ->
+                val lengthVariable = "length${Random.nextUInt()}"
+                val paddingVariable = "padding${Random.nextUInt()}"
+                val common = """
+                var $paddingVariable = 0
+                var $lengthVariable = buffer.readByte().toInt()
+                if($lengthVariable == 254) {
+                    $lengthVariable = buffer.readArbitraryLong(3).toInt()
+                    $paddingVariable = $lengthVariable + (-$lengthVariable % 4)
+                } else {
+                    $paddingVariable = $lengthVariable + (-($lengthVariable + 1) % 4)
+                }
+                ${if (type.optional) "" else "val "}$name = buffer.readArbitraryBytes($lengthVariable)
+                buffer.readArbitraryBytes($paddingVariable)
                 """
-                var $name: ${typeCodeGenerators[type.name]!!(type)} = null
-                if (${kotlinFieldName(type.flags!!)}.getValue(${type.flagsBit})) {
-                    $name = buffer.readLong()
+
+                if (type.optional) {
+                    """
+                    var $name: ${typeCodeGenerators[type.name]!!(type)} = null
+                    if (${kotlinFieldName(type.flags!!)}.getValue(${type.flagsBit})) {
+                        ${common.prependIndent("    ")}
+                    }
+                    """
+                } else {
+                    common
+                }
+            },
+            "Vector" to { name: String, type: TLType ->
+                val child = type.genericChildren!![0]
+                val childCodeGenerator = deserializationCodeGenerators[child.name]
+                    ?: throw Exception("Deserialization code generator for type \"${type.name}\" was not found")
+
+                val dataVariable = "data${Random.nextUInt()}"
+                val common = """
+                buffer.readInt()
+                repeat(buffer.readInt()) {
+                ${childCodeGenerator(dataVariable, child).trimIndent().prependIndent("    ")}
+                    $name += $dataVariable
                 }
                 """
-            } else {
-                "val $name = buffer.readLong()"
-            }
-        },
-        "#" to { name: String, _: TLType ->
-            val dataVariable = "data${Random.nextUInt()}"
 
-            """
-            val $dataVariable = buffer.readInt()
-            val $name = TLFlags($dataVariable)
-            """
-        },
-    )
+                if (type.optional) {
+                    """
+                    var $name: ${typeCodeGenerators[type.name]!!(type)} = null
+                    if (${kotlinFieldName(type.flags!!)}.getValue(${type.flagsBit})) {
+                    ${common.prependIndent("    ")}
+                    }
+                    """
+                } else {
+                    "val $name = mutableListOf<${typeCodeGenerators[child.name]!!(child)}>()\n" + common.trimIndent()
+                }
+            },
+            "#" to { name: String, _: TLType ->
+                val dataVariable = "data${Random.nextUInt()}"
 
-    private val serializationCodeGenerators = mapOf(
-        "long" to { name: String, type: TLType ->
-            if (type.optional) {
+                """
+                val $dataVariable = buffer.readInt()
+                val $name = TLFlags($dataVariable)
+                """
+            },
+        )
+    }
+
+    private val serializationCodeGenerators: Map<String, (String, TLType) -> String> by lazy {
+        mapOf(
+            "int" to { name: String, type: TLType ->
+                if (type.optional) {
+                    """
+                    if ($name != null) {
+                        buffer.writeInt($name)
+                    }
+                    """
+                } else {
+                    "buffer.writeInt($name)"
+                }
+            },
+            "long" to { name: String, type: TLType ->
+                if (type.optional) {
+                    """
+                    if ($name != null) {
+                        buffer.writeLong($name)
+                    }
+                    """
+                } else {
+                    "buffer.writeLong($name)"
+                }
+            },
+            "int128" to { name: String, type: TLType ->
+                if (type.optional) {
+                    """
+                    if ($name != null) {
+                        buffer.writeInt128($name)
+                    }
+                    """
+                } else {
+                    "buffer.writeInt128($name)"
+                }
+            },
+            "int256" to { name: String, type: TLType ->
+                if (type.optional) {
+                    """
+                    if ($name != null) {
+                        buffer.writeInt256($name)
+                    }
+                    """
+                } else {
+                    "buffer.writeInt256($name)"
+                }
+            },
+            "bytes" to { name: String, type: TLType ->
+                val common = """
+                if($name.size >= 254) {
+                    buffer.writeArbitraryLong(254, 1)
+                    buffer.writeArbitraryLong($name.size.toLong(), 3)
+                    buffer.writeArbitraryBytes($name)
+                    repeat($name.size + (-$name.size % 4)) {
+                        buffer.writeArbitraryBytes(byteArrayOf(0x00))
+                    }
+                } else {
+                    buffer.writeArbitraryLong($name.size.toLong(), 1)
+                    buffer.writeArbitraryBytes($name)
+                    repeat($name.size + (-($name.size + 1) % 4)) {
+                        buffer.writeArbitraryBytes(byteArrayOf(0x00))
+                    }
+                }
+                """
+
+                if (type.optional) {
+                    """
+                    if ($name != null) {
+                        ${common.prependIndent("    ")}
+                    }
+                    """
+                } else {
+                    common
+                }
+            },
+            "Vector" to { name: String, type: TLType ->
+                val child = type.genericChildren!![0]
+                val childCodeGenerator = serializationCodeGenerators[child.name]
+                    ?: throw Exception("Serialization code generator for type \"${type.name}\" was not found")
+
+                val common = """
+                buffer.writeInt(0x1cb5c415)
+                buffer.writeInt($name.size)
+                $name.forEach {
+                ${childCodeGenerator("it", child).trimIndent().prependIndent("    ")}
+                }
+                """
+
+                if (type.optional) {
+                    """
+                    if ($name != null) {
+                        ${common.prependIndent("    ")}
+                    }
+                    """
+                } else {
+                    common
+                }
+            },
+            "#" to { name: String, _: TLType ->
+                "buffer.writeInt($name.flags)"
+            },
+            "_kttlflags" to { name: String, _: TLType ->
+                "val $name = TLFlags()"
+            },
+            "_kttlflagscheck" to { name: String, type: TLType ->
                 """
                 if ($name != null) {
-                    buffer.writeLong($name)
+                    ${type.flags}.setValue(${type.flagsBit}, true)
                 }
                 """
-            } else {
-                "buffer.writeLong($name)"
-            }
-        },
-        "#" to { name: String, _: TLType ->
-            "buffer.writeInt($name.flags)"
-        },
-        "_kttlflags" to { name: String, _: TLType ->
-            "val $name = TLFlags()"
-        },
-        "_kttlflagscheck" to { name: String, type: TLType ->
-            """
-            if ($name != null) {
-                ${type.flags}.setValue(${type.flagsBit}, true)
-            }
-            """
-        },
-    )
+            },
+        )
+    }
 
-    private val typeCodeGenerators = mapOf(
-        "long" to { type: TLType ->
-            if (type.optional) {
-                "Long?"
-            } else {
-                "Long"
-            }
-        },
-        "#" to { _: TLType -> "TLFlags" },
-    )
+    private val typeCodeGenerators: Map<String, (TLType) -> String> by lazy {
+        mapOf(
+            "int" to { type: TLType ->
+                if (type.optional) {
+                    "Int?"
+                } else {
+                    "Int"
+                }
+            },
+            "long" to { type: TLType ->
+                if (type.optional) {
+                    "Long?"
+                } else {
+                    "Long"
+                }
+            },
+            "int128" to { type: TLType ->
+                if (type.optional) {
+                    "BigInteger?"
+                } else {
+                    "BigInteger"
+                }
+            },
+            "int256" to { type: TLType ->
+                if (type.optional) {
+                    "BigInteger?"
+                } else {
+                    "BigInteger"
+                }
+            },
+            "bytes" to { type: TLType ->
+                if (type.optional) {
+                    "ByteArray?"
+                } else {
+                    "ByteArray"
+                }
+            },
+            "Vector" to { type: TLType ->
+                val child = type.genericChildren!![0]
+                val childTypeGenerator = typeCodeGenerators[child.name]
+                    ?: throw Exception("Type code generator for type \"${type.name}\" was not found")
+
+                if (type.optional) {
+                    "List<${childTypeGenerator(child)}>?"
+                } else {
+                    "List<${childTypeGenerator(child)}>"
+                }
+            },
+            "#" to { _: TLType -> "TLFlags" },
+        )
+    }
 
     private fun getFullOutputPath() = "$outputPath/${packageNamespace.replace(".", "/")}"
 
