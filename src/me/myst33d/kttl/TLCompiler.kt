@@ -123,7 +123,6 @@ class TLCompiler(
         fun writeInt256(data: BigInteger) = writeArbitraryBigInteger(data, 32)
 
         fun readArbitraryBigInteger(size: Int): BigInteger {
-            assert(position + size <= buffer.size)
             val value = BigInteger("0")
             for (i in size - 1 downTo 0) (buffer[i + position].toLong() and 0xff shl i * 8).toBigInteger() or value
             position += size
@@ -131,7 +130,6 @@ class TLCompiler(
         }
 
         fun readArbitraryLong(size: Int): Long {
-            assert(position + size <= buffer.size)
             var value = 0L
             for (i in size - 1 downTo 0) value = (buffer[i + position].toLong() and 0xff shl i * 8) or value
             position += size
@@ -139,7 +137,6 @@ class TLCompiler(
         }
 
         fun readArbitraryBytes(size: Int): ByteArray {
-            assert(position + size <= buffer.size)
             val data = buffer.slice(position until position + size).toByteArray()
             position += size
             return data
