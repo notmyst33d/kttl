@@ -14,6 +14,8 @@ class TLCompiler(
     private val templateGenericTlObject = """
     package $packageNamespace
 
+    import java.math.BigInteger
+
     class [CLASS_NAME] (
     [FIELDS]
     ) : TLObject() {
@@ -87,6 +89,8 @@ class TLCompiler(
 
     private val classTlBuffer = """
     package $packageNamespace
+
+    import java.math.BigInteger
 
     class TLBuffer(var buffer: ByteArray = ByteArray(0)) {
         var position = 0
