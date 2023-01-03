@@ -4,13 +4,13 @@ Kotlin Type Language Compiler
 ## Status
 This compiler is currently experimental and only supports a subset of TL
 
-- [ ] int type
-- [ ] int128 and int256 type (not likely to be implemented because Kotlin Native doesnt support BigInteger)
+- [x] int type
+- [x] int128 and int256 type
 - [x] long type
 - [ ] double type
 - [ ] string type
-- [ ] bytes type
-- [ ] Vector<T> type
+- [x] bytes type
+- [x] Vector<T> type
 - [ ] null type
 - [ ] bool type
 - [ ] Object type
